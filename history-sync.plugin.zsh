@@ -193,8 +193,10 @@ history_sync_pull() {
     [[ -o extendedhistory ]] && _squash_multiline_commands_in_files
 
     # Merge
+    # The AWK pattern must match the zsh extended history format: ": TIMESTAMP:DURATION;command"
+    # Using /^: [0-9]+:[0-9]+;/ to match only lines starting with the history timestamp
     CAT "$ZSH_HISTORY_FILE" "$ZSH_HISTORY_FILE_DECRYPT_NAME" | \
-      AWK '/:[0-9]/ { if(s) { print s } s=$0 } !/:[0-9]/ { s=s"\n"$0 } END { print s }' | \
+      AWK '/^: [0-9]+:[0-9]+;/ { if(s) { print s } s=$0; next } { s=s"\n"$0 } END { print s }' | \
       SORT -u > "$ZSH_HISTORY_FILE_MERGED_NAME"
     MV "$ZSH_HISTORY_FILE_MERGED_NAME" "$ZSH_HISTORY_FILE"
     RM  "$ZSH_HISTORY_FILE_DECRYPT_NAME"
@@ -203,10 +205,16 @@ history_sync_pull() {
     # Check if EXTENDED_HISTORY is enabled, and if so, restore multi-line
     # commands in the local history file
     [[ -o extendedhistory ]] && _restore_multiline_commands_in_file
-    # Strip trailing '\' if the next line is blank
-    SED -E -i '/\\$/ { N; s/\\+\n$/\n/ }' "$ZSH_HISTORY_FILE"
-    # Strip blank lines
-    SED -i '/^$/d' "$ZSH_HISTORY_FILE"
+    # Clean up spurious continuation markers and trailing backslashes before new entries
+    PERL -i -ne '
+        next if /^[\\[:space:]]*$/;
+        if (defined $prev) {
+            $prev =~ s/\\$// if $prev =~ /\\$/ && /^: \d+:\d+;/;
+            print $prev;
+        }
+        $prev = $_;
+        END { print $prev if defined $prev; }
+    ' "$ZSH_HISTORY_FILE"
 }
 
 # Encrypt and push current history to master

@@ -123,3 +123,29 @@ zhps -y -r $UID && zhpl -y
 check_history "^1 for i in \{1..3\}; do\necho \\\$i\ndone$"
 unalias sed
 success "SUCCESS"
+
+info "TEST SYNC HISTORY MULTI-LINE WITH COLON-DIGIT"
+setup
+# Test that continuation lines STARTING with ":0", ":1", etc. are not mistakenly
+# treated as new history entries (regression test for AWK pattern fix)
+# The old loose pattern /:[0-9]/ would split this into 3 entries
+echo ": 1234567890:0;cat <<EOF
+:0 line starting with colon-zero
+:1 line starting with colon-one
+EOF" >> ~/.zsh_history
+zhps -y -r $UID && zhpl -y
+check_history "^: 1234567890:0;cat <<EOF\n:0 line starting with colon-zero\n:1 line starting with colon-one\nEOF$"
+success "SUCCESS"
+
+info "TEST SYNC HISTORY SPURIOUS CONTINUATION CLEANUP"
+setup
+# Test that spurious trailing backslashes and empty continuation lines are cleaned up
+# This prevents commands like "brew upgrade\" followed by "\" from merging with next entry
+printf ': 1234567890:0;command one\\
+\\
+: 1234567891:0;command two
+' >> ~/.zsh_history
+zhps -y -r $UID && zhpl -y
+check_history "^: 1234567890:0;command one$"
+check_history "^: 1234567891:0;command two$"
+success "SUCCESS"
