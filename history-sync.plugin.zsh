@@ -69,6 +69,11 @@ _usage() {
 
 # "Squash" each multi-line command in the passed history files to one line
 _squash_multiline_commands_in_files() {
+    # Force byte-mode locale: macOS BSD tools (grep -F, sed, sort, tr, fold)
+    # abort with "illegal byte sequence" on invalid UTF-8 in the history file.
+    # All patterns here are pure ASCII, so byte-mode is semantically identical.
+    local LC_ALL=C
+
     # Create temporary files
     # Use global variables to use same path's in the restore-multi-line commands
     # function
@@ -123,6 +128,9 @@ _squash_multiline_commands_in_files() {
 
 # Restore multi-line commands in the history file
 _restore_multiline_commands_in_file() {
+    # Force byte-mode locale: see _squash_multiline_commands_in_files.
+    local LC_ALL=C
+
     # Filter unnecessary lines from the history file (Binary file ... matches)
     # and save them in a separate file
     GREP -v '^: [0-9]\{1,10\}:[0-9]\+;' "$ZSH_HISTORY_FILE" > "${TMP_FILE_1}"
