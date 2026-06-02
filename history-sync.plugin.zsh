@@ -129,13 +129,13 @@ _squash_multiline_commands_in_files() {
 
 # Restore multi-line commands in the history file
 _restore_multiline_commands_in_file() {
-    # Filter unnecessary lines from the history file (Binary file ... matches)
-    # and save them in a separate file
-    GREP -v '^: [0-9]\{1,10\}:[0-9]\+;' "$ZSH_HISTORY_FILE" > "${TMP_FILE_1}"
-
-    # Filter out unnecessary lines and remove them from the original file
-    GREP -v -x -F -f "${TMP_FILE_1}" "$ZSH_HISTORY_FILE" > "${TMP_FILE_2}" && \
-        MV "${TMP_FILE_2}" "$ZSH_HISTORY_FILE"
+    # Drop any non-timestamp orphan lines and keep only proper history records.
+    # The previous two-pass grep approach (grep -v then grep -v -x -F -f) blew up
+    # with "grep: out of memory" when the squash step produced one very long
+    # line and BSD grep tried to load it as a fixed pattern. A single streaming
+    # awk pass has bounded memory and the same effect.
+    AWK '/^: [0-9]+:[0-9]+;/' "$ZSH_HISTORY_FILE" > "${TMP_FILE_2}" \
+        && MV "${TMP_FILE_2}" "$ZSH_HISTORY_FILE"
 
     # Replace the sequence of symbols by \n to restore multi-line commands
     SED "s/ ${NL_REPLACEMENT} /\n/g" "$ZSH_HISTORY_FILE" > "${TMP_FILE_1}" \
