@@ -17,15 +17,21 @@ alias zhsync="history_sync_pull && history_sync_push"
 CP() { command cp "$@"; }
 MV() { command mv "$@"; }
 RM() { command rm "$@"; }
+# Text-processing wrappers force C locale: macOS BSD tools abort with
+# "illegal byte sequence" / "towc: multibyte conversion failure" when fed
+# invalid UTF-8 (e.g. stray pastes in history, random bytes from urandom)
+# under en_US.UTF-8. All patterns in this plugin are pure ASCII, so byte-
+# mode is semantically identical. Doing it on the wrappers means callers
+# never have to remember it.
 TR() { LC_ALL=C command tr "$@"; }
-AWK() { command awk "$@"; }
+AWK() { LC_ALL=C command awk "$@"; }
 CAT() { command cat "$@"; }
 GIT() { command git "$@"; }
 GPG() { command gpg "$@"; }
-SED() { command sed "$@"; }
+SED() { LC_ALL=C command sed "$@"; }
 DATE() { command date "$@"; }
-FOLD() { command fold "$@"; }
-GREP() { command grep "$@"; }
+FOLD() { LC_ALL=C command fold "$@"; }
+GREP() { LC_ALL=C command grep "$@"; }
 HEAD() { command head "$@"; }
 PERL() { command perl "$@"; }
 SORT() { LC_ALL=C command sort "$@"; }
@@ -69,11 +75,6 @@ _usage() {
 
 # "Squash" each multi-line command in the passed history files to one line
 _squash_multiline_commands_in_files() {
-    # Force byte-mode locale: macOS BSD tools (grep -F, sed, sort, tr, fold)
-    # abort with "illegal byte sequence" on invalid UTF-8 in the history file.
-    # All patterns here are pure ASCII, so byte-mode is semantically identical.
-    local LC_ALL=C
-
     # Create temporary files
     # Use global variables to use same path's in the restore-multi-line commands
     # function
@@ -128,9 +129,6 @@ _squash_multiline_commands_in_files() {
 
 # Restore multi-line commands in the history file
 _restore_multiline_commands_in_file() {
-    # Force byte-mode locale: see _squash_multiline_commands_in_files.
-    local LC_ALL=C
-
     # Filter unnecessary lines from the history file (Binary file ... matches)
     # and save them in a separate file
     GREP -v '^: [0-9]\{1,10\}:[0-9]\+;' "$ZSH_HISTORY_FILE" > "${TMP_FILE_1}"
@@ -203,11 +201,9 @@ history_sync_pull() {
     # Merge
     # The AWK pattern must match the zsh extended history format: ": TIMESTAMP:DURATION;command"
     # Using /^: [0-9]+:[0-9]+;/ to match only lines starting with the history timestamp
-    # LC_ALL=C makes awk/sort treat input as bytes; otherwise macOS awk aborts with
-    # "towc: multibyte conversion failure" on invalid UTF-8 sequences in history.
     CAT "$ZSH_HISTORY_FILE" "$ZSH_HISTORY_FILE_DECRYPT_NAME" | \
-      LC_ALL=C AWK '/^: [0-9]+:[0-9]+;/ { if(s) { print s } s=$0; next } { s=s"\n"$0 } END { print s }' | \
-      LC_ALL=C SORT -u > "$ZSH_HISTORY_FILE_MERGED_NAME"
+      AWK '/^: [0-9]+:[0-9]+;/ { if(s) { print s } s=$0; next } { s=s"\n"$0 } END { print s }' | \
+      SORT -u > "$ZSH_HISTORY_FILE_MERGED_NAME"
     MV "$ZSH_HISTORY_FILE_MERGED_NAME" "$ZSH_HISTORY_FILE"
     RM  "$ZSH_HISTORY_FILE_DECRYPT_NAME"
     cd  "$DIR"
