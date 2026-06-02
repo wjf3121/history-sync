@@ -195,9 +195,11 @@ history_sync_pull() {
     # Merge
     # The AWK pattern must match the zsh extended history format: ": TIMESTAMP:DURATION;command"
     # Using /^: [0-9]+:[0-9]+;/ to match only lines starting with the history timestamp
+    # LC_ALL=C makes awk/sort treat input as bytes; otherwise macOS awk aborts with
+    # "towc: multibyte conversion failure" on invalid UTF-8 sequences in history.
     CAT "$ZSH_HISTORY_FILE" "$ZSH_HISTORY_FILE_DECRYPT_NAME" | \
-      AWK '/^: [0-9]+:[0-9]+;/ { if(s) { print s } s=$0; next } { s=s"\n"$0 } END { print s }' | \
-      SORT -u > "$ZSH_HISTORY_FILE_MERGED_NAME"
+      LC_ALL=C AWK '/^: [0-9]+:[0-9]+;/ { if(s) { print s } s=$0; next } { s=s"\n"$0 } END { print s }' | \
+      LC_ALL=C SORT -u > "$ZSH_HISTORY_FILE_MERGED_NAME"
     MV "$ZSH_HISTORY_FILE_MERGED_NAME" "$ZSH_HISTORY_FILE"
     RM  "$ZSH_HISTORY_FILE_DECRYPT_NAME"
     cd  "$DIR"
